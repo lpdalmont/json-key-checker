@@ -47,38 +47,22 @@ Add the following to your VS Code **`settings.json`** to configure the extension
   "jsonKeyChecker.patterns": [
     {
       "name": "UI Texts",
-      "jsonFiles": [
-        "locales/*.json"
-      ],
-      "methodPatterns": [
-        "t\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"
-      ],
-      "fileExtensions": [
-        ".ts",
-        ".tsx",
-        ".js"
-      ]
+      "jsonFiles": ["locales/*.json"],
+      "methodPatterns": ["t\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"],
+      "fileExtensions": [".ts", ".tsx", ".js"]
     },
     {
       "name": "Error Messages",
-      "jsonFiles": [
-        "errors/*.json"
-      ],
-      "methodPatterns": [
-        "error\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"
-      ],
-      "fileExtensions": [
-        ".ts",
-        ".js"
-      ]
+      "jsonFiles": ["errors/*.json"],
+      "methodPatterns": ["error\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"],
+      "fileExtensions": [".ts", ".js"]
     }
   ]
 }
-
+```
 
 ## Release Notes
 
 ### 0.0.1
 
 This is a pre-release.
-```
