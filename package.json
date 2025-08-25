@@ -1,0 +1,101 @@
+{
+  "publisher": "lpdalmont",
+  "name": "json-key-checker",
+  "displayName": "JSON Key Checker",
+  "description": "Highlights unused JSON keys",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.103.0"
+  },
+  "categories": [
+    "Other",
+    "Linters"
+  ],
+  "keywords": [
+    "json",
+    "unused",
+    "diagnostics",
+    "keys",
+    "validation",
+    "analysis"
+  ],
+  "activationEvents": [
+    "onLanguage:json",
+    "onLanguage:javascript",
+    "onLanguage:typescript",
+    "onLanguage:html"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "jsonKeyChecker.refresh",
+        "title": "Refresh JSON Key Analysis"
+      }
+    ],
+    "configuration": {
+      "title": "JSON Key Checker",
+      "properties": {
+        "jsonKeyChecker.patterns": {
+          "type": "array",
+          "default": [],
+          "description": "Patterns for matching JSON files with their corresponding method calls",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Name for this pattern group"
+              },
+              "jsonFiles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "JSON file patterns (supports * wildcards)"
+              },
+              "methodPatterns": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Regex patterns for method calls"
+              },
+              "fileExtensions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "File extensions to check"
+              }
+            }
+          }
+        },
+        "jsonKeyChecker.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable JSON key checking"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.103.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "22.x",
+    "@typescript-eslint/eslint-plugin": "^8.39.0",
+    "@typescript-eslint/parser": "^8.39.0",
+    "eslint": "^9.32.0",
+    "typescript": "^5.9.2",
+    "@vscode/test-cli": "^0.0.11",
+    "@vscode/test-electron": "^2.5.2"
+  }
+}
