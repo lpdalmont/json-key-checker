@@ -4,6 +4,11 @@
   "displayName": "JSON Key Checker",
   "description": "Highlights unused JSON keys",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lpdalmont/json-key-checker"
+  },
+  "license": "MIT",
   "engines": {
     "vscode": "^1.103.0"
   },
