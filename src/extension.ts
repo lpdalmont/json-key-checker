@@ -1,21 +1,12 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from "vscode";
-
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+import { flattenJsonKeys, loadJsonFiles } from "./utils";
+import { JsonKeyCompletionProvider } from "./jsonKeyCompletionProvider";
 export function activate(context: vscode.ExtensionContext) {
-  // Use the  to output diagnostic information (.log) and errors (.error)
-  // This line of code will only be executed once when your extension is activated
+  console.log("JSON Key Checker extension is now active!");
 
-  // The command has been defined in the package.json file
-  // Now provide the implementation of the command with registerCommand
-  // The commandId parameter must match the command field in package.json
   const disposable = vscode.commands.registerCommand(
     "helloworld.helloWorld",
     () => {
-      // The code you place here will be executed every time your command is executed
-      // Display a message box to the user
       vscode.window.showInformationMessage("Hello World VS Code!");
     }
   );
@@ -47,9 +38,39 @@ export function activate(context: vscode.ExtensionContext) {
       updateDiagnostics(event.document, diagnosticCollection);
     })
   );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || event.document !== editor.document) return;
+
+      if (event.contentChanges.length === 1) {
+        const change = event.contentChanges[0];
+
+        // Backspace
+        if (change.text === "" && change.rangeLength === 1) {
+          vscode.commands.executeCommand("editor.action.triggerSuggest");
+        }
+
+        // Letters or numbers
+        if (/^[a-zA-Z0-9]$/.test(change.text)) {
+          vscode.commands.executeCommand("editor.action.triggerSuggest");
+        }
+      }
+    })
+  );
+
+  // 🔑 Completion provider triggers on quotes and dots
+  const completionProvider = vscode.languages.registerCompletionItemProvider(
+    ["javascript", "typescript", "vue", "html"],
+    new JsonKeyCompletionProvider(),
+    '"',
+    "'",
+    "." // for nested keys
+  );
+  context.subscriptions.push(completionProvider);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
 
 async function updateDiagnostics(
@@ -57,7 +78,7 @@ async function updateDiagnostics(
   collection: vscode.DiagnosticCollection
 ) {
   const config = vscode.workspace.getConfiguration("jsonKeyChecker");
-  const patterns = config.get<any[]>("patterns", []); // Fixed typo from "partterns"
+  const patterns = config.get<any[]>("patterns", []);
 
   if (patterns.length === 0) {
     collection.delete(document.uri);
@@ -87,7 +108,6 @@ async function updateDiagnostics(
   if (matchedPatterns.length === 0) {
     for (const pattern of patterns) {
       if (pattern.fileExtensions.includes(fileExtension || "")) {
-        // Fixed: was fileExtension, now fileExtensions
         const text = document.getText();
         const hasMatch = pattern.methodPatterns.some(
           (methodPattern: string) => {
@@ -111,20 +131,16 @@ async function updateDiagnostics(
   const relevantJsonFiles = new Set<string>();
   matchedPatterns.forEach((pattern) => {
     pattern.jsonFiles.forEach((jsonFile: string) => {
-      // Fixed: removed .array
       relevantJsonFiles.add(jsonFile);
     });
   });
 
   const jsonData = await loadJsonFiles(Array.from(relevantJsonFiles));
 
-  // Check based on current file type
   const isCurrentFileJson = fileName.toLowerCase().endsWith(".json");
   if (isCurrentFileJson) {
-    // Check for unused keys in this JSON file
     checkUnusedKeysInJsonFile(document, jsonData, matchedPatterns, collection);
   } else {
-    // Check for missing keys in this source file
     checkMissingKeysInSourceFile(
       document,
       jsonData,
@@ -134,61 +150,28 @@ async function updateDiagnostics(
   }
 }
 
-async function loadJsonFiles(
-  jsonFilePatterns: string[]
-): Promise<Map<string, any>> {
-  const jsonData = new Map<string, any>();
-
-  for (const pattern of jsonFilePatterns) {
-    try {
-      if (pattern.includes("*")) {
-        // Handle glob patterns
-        const files = await vscode.workspace.findFiles(pattern);
-        for (const file of files) {
-          const content = await vscode.workspace.fs.readFile(file);
-          const data = JSON.parse(content.toString());
-          jsonData.set(file.fsPath, data);
-        }
-      } else {
-        // Handle specific file
-        const files = await vscode.workspace.findFiles(`**/${pattern}`);
-        for (const file of files) {
-          const content = await vscode.workspace.fs.readFile(file);
-          const data = JSON.parse(content.toString());
-          jsonData.set(file.fsPath, data);
-        }
-      }
-    } catch (error) {}
-  }
-
-  return jsonData;
-}
-
 async function checkUnusedKeysInJsonFile(
   document: vscode.TextDocument,
-  jsonData: Map<string, any>,
+  jsonData: Map<string, Set<string>>,
   matchedPatterns: any[],
   collection: vscode.DiagnosticCollection
 ) {
   try {
     const currentJsonText = document.getText();
     const currentJsonData = JSON.parse(currentJsonText);
-    const currentJsonKeys = Object.keys(currentJsonData);
+    const currentJsonKeys = Array.from(flattenJsonKeys(currentJsonData));
 
     // Find all keys used across all source files
     const usedKeys = new Set<string>();
 
-    // Make this properly async
     for (const pattern of matchedPatterns) {
       for (const methodPattern of pattern.methodPatterns) {
-        // More robust regex that handles different quote types
         const regex = new RegExp(
           methodPattern + `\\s*\\(\\s*(['"])([^'"]+)\\1\\s*\\)`,
           "g"
         );
 
         const searchPattern = `**/*.{${pattern.fileExtensions.join(",")}}`;
-
         const files = await vscode.workspace.findFiles(
           searchPattern,
           "**/node_modules/**"
@@ -201,7 +184,7 @@ async function checkUnusedKeysInJsonFile(
 
             let match;
             while ((match = regex.exec(text)) !== null) {
-              usedKeys.add(match[2]); // Changed to match[2]
+              usedKeys.add(match[2]);
             }
           } catch (error) {
             // Skip files that can't be read
@@ -210,7 +193,23 @@ async function checkUnusedKeysInJsonFile(
       }
     }
 
-    const unusedKeys = currentJsonKeys.filter((key) => !usedKeys.has(key));
+    // Expand used keys to include all parent keys
+    const expandedUsedKeys = new Set<string>();
+    usedKeys.forEach((key) => {
+      expandedUsedKeys.add(key);
+
+      // Add all parent keys
+      const parts = key.split(".");
+      for (let i = 1; i < parts.length; i++) {
+        const parentKey = parts.slice(0, i).join(".");
+        expandedUsedKeys.add(parentKey);
+      }
+    });
+
+    // Use expandedUsedKeys instead of usedKeys for filtering
+    const unusedKeys = currentJsonKeys.filter(
+      (key) => !expandedUsedKeys.has(key)
+    );
 
     // Create diagnostics for unused keys
     const diagnostics: vscode.Diagnostic[] = [];
@@ -218,10 +217,14 @@ async function checkUnusedKeysInJsonFile(
 
     lines.forEach((line, lineIndex) => {
       unusedKeys.forEach((unusedKey) => {
-        const keyMatch = line.match(new RegExp(`"(${unusedKey})"\\s*:`));
+        // Handle both regular keys and nested keys
+        const keyParts = unusedKey.split(".");
+        const leafKey = keyParts[keyParts.length - 1];
+
+        const keyMatch = line.match(new RegExp(`"(${leafKey})"\\s*:`));
         if (keyMatch) {
-          const startIndex = line.indexOf(`"${unusedKey}"`);
-          const endIndex = startIndex + unusedKey.length + 2; // +2 for quotes
+          const startIndex = line.indexOf(`"${leafKey}"`);
+          const endIndex = startIndex + leafKey.length + 2; // +2 for quotes
 
           const range = new vscode.Range(
             new vscode.Position(lineIndex, startIndex),
@@ -241,13 +244,14 @@ async function checkUnusedKeysInJsonFile(
 
     collection.set(document.uri, diagnostics);
   } catch (error) {
+    console.error("Error checking unused keys:", error);
     collection.delete(document.uri);
   }
 }
 
 function checkMissingKeysInSourceFile(
   document: vscode.TextDocument,
-  jsonData: Map<string, any>,
+  jsonData: Map<string, Set<string>>,
   matchedPatterns: any[],
   collection: vscode.DiagnosticCollection
 ) {
@@ -257,16 +261,14 @@ function checkMissingKeysInSourceFile(
 
     // Collect all available keys from loaded JSON files
     const allAvailableKeys = new Set<string>();
-    jsonData.forEach((data) => {
-      Object.keys(data).forEach((key) => allAvailableKeys.add(key));
+    jsonData.forEach((keySet) => {
+      keySet.forEach((key) => allAvailableKeys.add(key));
     });
 
-    // For each matched pattern, find method calls and check if keys exist
     matchedPatterns.forEach((pattern) => {
       pattern.methodPatterns.forEach((methodPattern: string) => {
-        // Create regex to capture the key parameter
         const regex = new RegExp(
-          methodPattern + `\\s*\\(\\s*(['"\`])([^'"\`]+)\\1\\s*\\)`,
+          methodPattern + `\\s*\\(\\s*(['"])([^'"]+)\\1\\s*\\)`,
           "g"
         );
 
@@ -274,13 +276,10 @@ function checkMissingKeysInSourceFile(
         while ((match = regex.exec(sourceText)) !== null) {
           const key = match[2];
 
-          // Check if key exists in any of the JSON files
           if (!allAvailableKeys.has(key)) {
-            // Find the position of the key string within the match
             const keyStart = match.index + match[0].indexOf(match[1] + key);
-            const keyEnd = keyStart + key.length + 2; // +2 for quotes
+            const keyEnd = keyStart + key.length + 2;
 
-            // Convert string positions to VS Code positions
             const startPos = document.positionAt(keyStart);
             const endPos = document.positionAt(keyEnd);
 
@@ -300,6 +299,7 @@ function checkMissingKeysInSourceFile(
 
     collection.set(document.uri, diagnostics);
   } catch (error) {
+    console.error("Error checking missing keys:", error);
     collection.delete(document.uri);
   }
 }
