@@ -171,13 +171,30 @@ async function checkUnusedKeysInJsonFile(
           "g"
         );
 
-        const searchPattern = `**/*.{${pattern.fileExtensions.join(",")}}`;
-        const files = await vscode.workspace.findFiles(
-          searchPattern,
-          "**/node_modules/**"
-        );
+        // Use configurable scan folders or default to everything
+        const searchPatterns =
+          pattern.scanFolders && pattern.scanFolders.length > 0
+            ? pattern.scanFolders.map(
+                (folder: string) =>
+                  `${folder}**/*.{${pattern.fileExtensions.join(",")}}`
+              )
+            : [`**/*.{${pattern.fileExtensions.join(",")}}`];
 
-        for (const file of files) {
+        const allFiles: vscode.Uri[] = [];
+        for (const searchPattern of searchPatterns) {
+          const files = await vscode.workspace.findFiles(
+            searchPattern,
+            "**/node_modules/**"
+          );
+          allFiles.push(...files);
+        }
+
+        // Remove duplicates
+        const uniqueFiles = Array.from(
+          new Set(allFiles.map((f) => f.fsPath))
+        ).map((path) => vscode.Uri.file(path));
+
+        for (const file of uniqueFiles) {
           try {
             const content = await vscode.workspace.fs.readFile(file);
             const text = content.toString();
@@ -256,6 +273,23 @@ function checkMissingKeysInSourceFile(
   collection: vscode.DiagnosticCollection
 ) {
   try {
+    // Check if current file is in allowed scan folders (if specified)
+    const isInScanFolder = matchedPatterns.some((pattern) => {
+      if (!pattern.scanFolders || pattern.scanFolders.length === 0) {
+        return true; // No restriction, allow all files
+      }
+
+      return pattern.scanFolders.some((folder: string) => {
+        const relativePath = vscode.workspace.asRelativePath(document.uri);
+        return relativePath.startsWith(folder);
+      });
+    });
+
+    if (!isInScanFolder) {
+      collection.delete(document.uri);
+      return;
+    }
+
     const sourceText = document.getText();
     const diagnostics: vscode.Diagnostic[] = [];
 
