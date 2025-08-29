@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { flattenJsonKeys, loadJsonFiles } from "./utils";
 import { JsonKeyCompletionProvider } from "./jsonKeyCompletionProvider";
+import { JsonKeyDefinitionProvider } from "./jsonKeyDefinitionProvider";
+import { JsonKeyReferenceProvider } from "./jsonKeyReferenceProvider";
 export function activate(context: vscode.ExtensionContext) {
   console.log("JSON Key Checker extension is now active!");
 
@@ -69,6 +71,18 @@ export function activate(context: vscode.ExtensionContext) {
     "." // for nested keys
   );
   context.subscriptions.push(completionProvider);
+
+  const definitionProvider = vscode.languages.registerDefinitionProvider(
+    ["javascript", "typescript", "vue", "html"],
+    new JsonKeyDefinitionProvider()
+  );
+  context.subscriptions.push(definitionProvider);
+
+  const jsonDefinitionProvider = vscode.languages.registerDefinitionProvider(
+    ["json"],
+    new JsonKeyReferenceProvider()
+  );
+  context.subscriptions.push(jsonDefinitionProvider);
 }
 
 export function deactivate() {}
@@ -261,7 +275,6 @@ async function checkUnusedKeysInJsonFile(
 
     collection.set(document.uri, diagnostics);
   } catch (error) {
-    console.error("Error checking unused keys:", error);
     collection.delete(document.uri);
   }
 }

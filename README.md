@@ -9,9 +9,13 @@ Useful for catching missing or unused keys in localization files, error message 
 
 - 🔍 Checks JSON keys used in your code against JSON files.
 - ⚡ Supports configurable regex patterns for method calls.
-- 📂 Works across multiple file types (`.ts`, `.tsx`, `.js`, etc.).
+- 📂 Works across multiple file types (.ts, .tsx, .js, etc.).
 - 🎯 Helps prevent runtime errors caused by missing keys.
 - 🛠 Fully configurable via VS Code settings.
+- 💡 IntelliSense with hierarchical key completion.
+- 🔗 Go-to-definition: Ctrl+Click on keys to navigate between JSON and source code.
+- 📁 Configurable scan folders to limit analysis scope.
+- 🌳 Nested JSON key support with dot notation.
 
 ---
 
@@ -34,6 +38,7 @@ Each entry in `jsonKeyChecker.patterns` supports the following properties:
 | `jsonFiles`      | `array<string>` | JSON file patterns (supports `*` wildcards). |
 | `methodPatterns` | `array<string>` | Regex patterns for method calls.             |
 | `fileExtensions` | `array<string>` | File extensions to check.                    |
+| `scanFolders`    | `array<string>` | Scan folders to limit analysis scope.        |
 
 ---
 
@@ -49,20 +54,20 @@ Add the following to your VS Code **`settings.json`** to configure the extension
       "name": "UI Texts",
       "jsonFiles": ["locales/*.json"],
       "methodPatterns": ["t\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"],
-      "fileExtensions": [".ts", ".tsx", ".js"]
+      "fileExtensions": [".ts", ".tsx", ".js"],
+      "scanFolders": ["src/app/"]
     },
     {
       "name": "Error Messages",
       "jsonFiles": ["errors/*.json"],
       "methodPatterns": ["error\\(['\"]([a-zA-Z0-9_.-]+)['\"]\\)"],
-      "fileExtensions": [".ts", ".js"]
+      "fileExtensions": [".ts", ".js"],
+      "scanFolders": ["src/"]
     }
   ]
 }
 ```
 
 ## Release Notes
-
-### 0.0.1
 
 This is a pre-release.
